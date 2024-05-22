@@ -1,43 +1,7 @@
 /* eslint-disable react/jsx-key */
 import { frames } from "../frames";
-
-interface TokenData {
-	symbol: string;
-	usdPrice: number;
-	fdv: number;
-}
-
-const isValidAddress = (address: string) => {
-	if (!address) return false;
-	return true;
-};
-
-const getTokenData = async (address: string) => {
-	const url = `https://api.dexscreener.com/latest/dex/search?q=${address}`;
-	try {
-		const response = await fetch(url);
-		if (!response.ok) {
-			throw new Error(`Network response was not ok: ${response.statusText}`);
-		}
-		const data = await response.json();
-		const symbol = `$${data.pairs[0].baseToken.symbol}`;
-		const usdPrice = data.pairs[0].priceUsd;
-		let fdv = data.pairs[0].fdv;
-		let fdvString = fdv.toString();
-
-		if (fdv > 1000000000) {
-			fdvString = (fdv / 1000000000).toFixed(2) + "B";
-		} else if (fdv > 1000000) {
-			fdvString = (fdv / 1000000).toFixed(2) + "M";
-		} else {
-			fdvString = (fdv / 1000).toFixed(2) + "K";
-		}
-		return { symbol, usdPrice, fdv, fdvString };
-	} catch (error) {
-		console.error("Fetch error:", error);
-		return null;
-	}
-};
+import { Button } from "frames.js/next";
+import { isValidAddress, getTokenData, TokenData } from "@/utils/api";
 
 const calculatePriceWithSameFDV = (tokenDataOne: TokenData, tokenDataTwo: TokenData) => {
 	const fdvOne = tokenDataOne.fdv;
@@ -69,20 +33,24 @@ const calculatePriceWithSameFDV = (tokenDataOne: TokenData, tokenDataTwo: TokenD
 
 const handleRequest = frames(async ctx => {
 	let state = ctx.state;
-	const addressOne = state.addressOne;
 	const addressTwo = ctx.message?.inputText || "";
 
-	if (!isValidAddress(addressOne) || !isValidAddress(addressTwo)) {
+	if (!isValidAddress(addressTwo)) {
 		return {
 			image: <div tw='flex'>Invalid address</div>,
+			buttons: [
+				<Button action='post' target={{ pathname: "/" }}>
+					Try again
+				</Button>
+			],
 			state: state
 		};
 	}
 	state = { ...state, addressTwo };
 
 	try {
-		const tokenDataOne = await getTokenData(addressOne);
 		const tokenDataTwo = await getTokenData(addressTwo);
+		const tokenDataOne = state.tokenOneData;
 		if (!tokenDataOne || !tokenDataTwo) {
 			return {
 				image: <div tw='flex'>Error fetching data</div>,
@@ -98,16 +66,15 @@ const handleRequest = frames(async ctx => {
 
 		return {
 			image: (
-				<div tw='flex flex-col items-center p-4 bg-custom-dark text-black rounded-lg'>
-					<div tw='flex font-bold mb-4 text-xl'>
-						<span tw='text-green-300'> {tokenDataOne.symbol} WITH THE FDV CAP OF</span>
-						<span tw='text-blue-400'> {tokenDataTwo.symbol} </span>
+				<div tw='flex flex-col w-full h-full justify-center items-center bg-slate-900 text-black rounded-lg text-white'>
+					<div tw='flex text-4xl mb-4 justify-center items-center'>
+						<span tw='text-6xl font-bold text-green-300'> {tokenDataOne.symbol} </span>
+						<span tw='mx-2'> WITH THE FDV CAP OF </span>
+						<span tw='text-6xl font-bold text-indigo-400'> {tokenDataTwo.symbol} </span>
 					</div>
 					<div tw='flex items-center mb-4'>
-						<span tw='flex text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold'>
-							{newPriceOneString}
-						</span>
-						<span tw='flex text-green-500 text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold ml-2'>
+						<span tw='flex text-4xl font-bold mr-2'>{newPriceOneString}</span>
+						<span tw={`flex ${multiplierOne > 1 ? "text-green-500" : "text-red-500"} text-4xl font-bold`}>
 							({multiplierOne.toFixed(2)}x)
 						</span>
 					</div>
